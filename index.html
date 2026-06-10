@@ -35,6 +35,12 @@
         background:#F7FAFB;border:1px solid #CBD6DB;border-radius:7px;padding:6px 8px;font-weight:700;}
   .row input:focus{outline:2px solid var(--flow);border-color:var(--flow);}
   .row .u{font-size:10px;color:var(--muted);width:34px;}
+  .wbrow{display:flex;align-items:center;gap:4px;margin:5px 0;}
+  .wbrow .wbl{font-size:11.5px;color:#33484F;width:58px;flex:none;}
+  .wbrow input{width:38px;font-family:var(--mono);font-size:12px;text-align:center;color:#0000CC;
+        background:#F7FAFB;border:1px solid #CBD6DB;border-radius:6px;padding:5px 3px;font-weight:700;}
+  .wbrow .wbh{font-size:10px;color:var(--muted);}
+  .wbnote{font-size:9.5px;color:var(--muted);margin-top:5px;line-height:1.4;}
   .lvltag{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle;}
 
   /* ---- right column ---- */
@@ -158,6 +164,14 @@
         <div class="row"><label>No-show</label><input id="noShow" type="number" min="0" max="60" value="10"><span class="u">%</span></div>
         <div class="row"><label>Llegan antes</label><input id="earlyMin" type="number" min="0" value="30"><span class="u">min</span></div>
         <div class="row"><label>Sin cita (por turno)</label><input id="walkIns" type="number" min="0" value="0"><span class="u">pac</span></div>
+      </div>
+
+      <div class="grp">
+        <div class="lbl">Sin cita · distribución horaria</div>
+        <div class="wbrow"><span class="wbl">Bloque 1</span><input id="wb1a" type="number" min="0" value="8">–<input id="wb1b" type="number" min="0" value="11"><span class="wbh">h</span><input id="wb1p" type="number" min="0" value="60"><span class="wbh">%</span></div>
+        <div class="wbrow"><span class="wbl">Bloque 2</span><input id="wb2a" type="number" min="0" value="11">–<input id="wb2b" type="number" min="0" value="14"><span class="wbh">h</span><input id="wb2p" type="number" min="0" value="30"><span class="wbh">%</span></div>
+        <div class="wbrow"><span class="wbl">Bloque 3</span><input id="wb3a" type="number" min="0" value="14">–<input id="wb3b" type="number" min="0" value="16"><span class="wbh">h</span><input id="wb3p" type="number" min="0" value="10"><span class="wbh">%</span></div>
+        <div class="wbnote">Los % se normalizan a 100. Solo aplica si hay sin cita &gt; 0.</div>
       </div>
 
       <div class="grp" style="margin-bottom:0">
@@ -350,7 +364,15 @@ function makeArrivals(P,kind,model){
   }
   for(const t of booked){if(rng()<P.noShow)continue;out.push(Math.max(0,t-P.earlyMin));}
   const wn=P.walkIns||0;const rw=mulberry32(555);
-  for(let i=0;i<wn;i++)out.push(Math.round(rw()*Math.max(1,model.netMin)));
+  const turnEndW=P.endMin-P.startMin;
+  const bands=(P.walkBands||[]).filter(bd=>bd.b>bd.a&&bd.pct>0);
+  const tot=bands.reduce((s,bd)=>s+bd.pct,0);
+  for(let i=0;i<wn;i++){
+    let m;
+    if(bands.length&&tot>0){let x=rw()*tot,bd=bands[bands.length-1];for(const b2 of bands){if(x<b2.pct){bd=b2;break;}x-=b2.pct;}m=bd.a+rw()*(bd.b-bd.a);}
+    else m=rw()*Math.max(1,model.netMin);
+    out.push(Math.round(Math.max(0,Math.min(turnEndW,m))));
+  }
   return out.sort((a,b)=>a-b);
 }
 
@@ -399,13 +421,15 @@ const num=id=>parseFloat(E(id).value)||0;
 function hm(id){const v=E(id).value.split(':');return (+v[0])*60+(+v[1]);}
 function readP(){
   const startMin=hm('start');
+  const band=(a,b,p)=>({a:Math.max(0,num(a)*60-startMin),b:num(b)*60-startMin,pct:Math.max(0,num(p))});
+  const walkBands=[band('wb1a','wb1b','wb1p'),band('wb2a','wb2b','wb2p'),band('wb3a','wb3b','wb3p')];
   return {lamps:Math.max(1,num('lamps')),nAdsc:num('nAdsc'),supMin:Math.max(1,num('supMin')),
     nR1:num('nR1'),tac1:Math.max(1,num('tac1')),nR2:num('nR2'),tac2:Math.max(1,num('tac2')),
     nR3:num('nR3'),tac3:Math.max(1,num('tac3')),
     startMin,endMin:hm('end'),lunchStartRel:0,lunchDur:0,
     buffer:Math.min(1,Math.max(.5,num('buffer')/100)),noShow:Math.min(.6,Math.max(0,num('noShow')/100)),
     earlyMin:Math.max(0,num('earlyMin')),slotCurrent:Math.max(1,num('slotCurrent')),walkIns:Math.max(0,num('walkIns')),
-    batch:Math.max(1,num('batch')),manualInt:Math.max(0,num('manualInt')),assign:assignPol};
+    batch:Math.max(1,num('batch')),manualInt:Math.max(0,num('manualInt')),assign:assignPol,walkBands};
 }
 function fmt(min){const h=Math.floor(min/60),m=Math.round(min)%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
 
