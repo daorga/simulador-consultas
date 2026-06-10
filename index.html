@@ -125,9 +125,7 @@
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <div class="eyebrow">Hospital-escuela · Planeación de consulta de oftalmología</div>
-    <h1>Simulador de capacidad y <span class="accent">cadencia de citas</span></h1>
+  <header>    <h1>Simulador de capacidad y <span class="accent">cadencia de citas</span></h1>
   </header>
 
   <div class="layout">
@@ -221,8 +219,8 @@
           </div>
         </div>
         <p class="cmpnote"><b>Ojo con el “uso de lámparas”:</b> si el slot actual marca un uso igual o mayor, no es que sea más eficiente
-          — es que mantiene una <b>fila permanente</b> que nunca deja la lámpara ociosa. Ambos escenarios atienden a los <b>mismos pacientes</b>
-          (revisa “Atendidos”): ese punto extra de uso no produce ni una consulta más, solo se paga con minutos de espera. El margen ocioso de la
+          — es que mantiene una <b>fila permanente</b> que nunca deja la lámpara ociosa. Partiendo de la <b>misma demanda del día</b>,
+          ese punto extra de uso no produce ni una consulta más, solo se paga con minutos de espera. El margen ocioso de la
           cadencia recomendada es la <b>holgura que vacía la sala</b>.</p>
       </div>
 
@@ -333,9 +331,10 @@ function computeModel(P){
   const slots=recoSlots(P,interval);
   const totalCitas=slots.length;
   const lastApptMin=slots.length?slots[slots.length-1]:0;
+  const autoTotalCitas=recoSlots(Object.assign({},P,{batch:1,manualInt:0}),autoInterval).length;
   return {netMin,totalRes,activeLamps,aggAll,lampRate,supRate,sysRate,effRate,
           walkIns,walkRate,schedRate,overloaded,interval,autoInterval,intervalNoShow,bottleneck,
-          batch,groupInterval,manualInt,manualRate,manualOver,manualUnder,maxTac,lastApptMin,totalCitas};
+          batch,groupInterval,manualInt,manualRate,manualOver,manualUnder,maxTac,lastApptMin,totalCitas,autoTotalCitas};
 }
 
 function buildServers(P){
@@ -355,10 +354,10 @@ function makeArrivals(P,kind,model){
   if(kind==='reco'){
     recoSlots(P,model.interval).forEach(t=>booked.push(t));
   }else{ // slot fijo: P.lamps pacientes cada slotCurrent min, saltando la comida, hasta igualar las citas recomendadas
-    let b=0,guard=0;
-    while(booked.length<model.totalCitas&&guard++<5000){
+    let b=0,guard=0;const nAct=model.autoTotalCitas;
+    while(booked.length<nAct&&guard++<5000){
       const inLunch=(b>=lunchA&&b<lunchB);
-      if(!inLunch&&b<=turnEnd-mt){for(let i=0;i<P.lamps&&booked.length<model.totalCitas;i++)booked.push(b);}
+      if(!inLunch&&b<=turnEnd-mt){for(let i=0;i<P.lamps&&booked.length<nAct;i++)booked.push(b);}
       b+=P.slotCurrent; if(b>turnEnd)break;
     }
   }
@@ -482,7 +481,7 @@ function recompute(){
     `no-show ${(P.noShow*100).toFixed(0)}%, llegada ${P.earlyMin} min antes`+
     (P.lunchDur>0?`, comida ${fmt(P.startMin+P.lunchStartRel)}–${fmt(P.startMin+P.lunchStartRel+P.lunchDur)} (lámparas detenidas)`:``)+
     (M.walkIns>0?` y ${M.walkIns} pacientes sin cita repartidos al azar en el turno (entran al mismo pool por orden de llegada; no se modela prioridad de urgencias)`:``)+
-    `. Capacidad real ≈ ${M.sysRate.toFixed(0)} consultas/h. Las citas se programan en mañana y tarde para que la última consulta termine cerca del cierre. Ambos escenarios reciben los mismos pacientes; solo cambia cómo se espacian las citas.`;
+    `. Capacidad real ≈ ${M.sysRate.toFixed(0)} consultas/h. Las citas se programan en mañana y tarde para que la última consulta termine cerca del cierre. El slot fijo agenda la demanda del día apretada en su rejilla; la cadencia propuesta la espacia a la capacidad real.`;
 
   buildStrip(r.S); // strip sized to active lamps (same S for both scenarios)
   t=0; render();
