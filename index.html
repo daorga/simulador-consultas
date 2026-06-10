@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de capacidad y cadencia de citas — Oftalmología</title>
+<style>
+  :root{
+    --ink:#11294A;--paper:#EDF1F7;--panel:#FFFFFF;--muted:#5D7088;
+    --flow:#2563EB;--flow-soft:#DDE8FC;--warn:#E8A33D;--jam:#E2752B;--jam-soft:#FBE7D6;
+    --r1:#6366C4;--r2:#3B7BD4;--r3:#1FA7C9;
+    --mono:ui-monospace,"SF Mono","Cascadia Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.42;
+       -webkit-font-smoothing:antialiased;}
+  .wrap{max-width:1200px;margin:0 auto;padding:22px 20px 60px;}
+  header{border-bottom:2px solid var(--ink);padding-bottom:13px;margin-bottom:18px;}
+  .eyebrow{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);font-weight:700;}
+  h1{font-size:clamp(20px,3.3vw,29px);margin:3px 0 0;font-weight:800;letter-spacing:-.01em;}
+  h1 .accent{color:var(--flow);}
+  .layout{display:grid;grid-template-columns:300px 1fr;gap:18px;align-items:start;}
+
+  /* ---- parámetros ---- */
+  .params{background:var(--panel);border:1px solid #D5DEE2;border-radius:14px;padding:14px 15px;}
+  .params h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+             font-weight:800;margin:2px 0 10px;}
+  .grp{margin-bottom:14px;}
+  .grp .lbl{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink);
+            font-weight:800;border-bottom:1px solid #E2E9EC;padding-bottom:4px;margin-bottom:8px;}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0;}
+  .row label{font-size:12.5px;color:#33484F;flex:1;}
+  .row input{width:74px;font-family:var(--mono);font-size:13px;text-align:right;color:#0000CC;
+        background:#F7FAFB;border:1px solid #CBD6DB;border-radius:7px;padding:6px 8px;font-weight:700;}
+  .row input:focus{outline:2px solid var(--flow);border-color:var(--flow);}
+  .row .u{font-size:10px;color:var(--muted);width:34px;}
+  .lvltag{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+
+  /* ---- right column ---- */
+  .right{display:flex;flex-direction:column;gap:16px;}
+
+  /* hero recomendación */
+  .hero{background:var(--ink);color:#fff;border-radius:14px;padding:18px 22px;}
+  .hero .cap{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#9DB4D6;font-weight:800;}
+  .hero .big{font-family:var(--mono);font-size:clamp(34px,6vw,52px);font-weight:700;line-height:1;margin:4px 0 2px;}
+  .hero .big span{color:#93B7F5;}
+  .hero .sub{font-size:13.5px;color:#C3D3EC;}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+  .chip{background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);border-radius:9px;
+        padding:7px 11px;font-size:12px;}
+  .chip b{font-family:var(--mono);font-size:14px;display:block;margin-top:1px;}
+  .chip.bn{background:var(--jam);border-color:var(--jam);}
+  .chip.bn.ok{background:var(--flow);border-color:var(--flow);}
+  .hero .note{margin-top:12px;font-size:12.5px;color:#AEC2E2;border-top:1px solid rgba(255,255,255,.16);padding-top:10px;}
+  .hero .note b{color:#fff;}
+
+  /* comparison cards */
+  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .card{background:var(--panel);border:1px solid #D5DEE2;border-radius:14px;padding:14px 16px;}
+  .card.reco{box-shadow:0 0 0 2px var(--flow-soft) inset;}
+  .card.act{box-shadow:0 0 0 2px var(--jam-soft) inset;}
+  .card .ct{display:flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;
+            font-weight:800;margin-bottom:10px;}
+  .card .ct .d{width:9px;height:9px;border-radius:50%;}
+  .card.reco .d{background:var(--flow);} .card.act .d{background:var(--jam);}
+  .mini{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;}
+  .m{background:#F4F7F8;border-radius:9px;padding:8px 9px;}
+  .m .v{font-family:var(--mono);font-size:19px;font-weight:700;line-height:1;}
+  .m .k{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:4px;}
+  .card.act .m.bad .v{color:var(--jam);}
+  .cmpnote{grid-column:1/-1;background:#EEF3FB;border:1px solid #CBDAF0;border-left:3px solid var(--flow);
+           border-radius:8px;padding:10px 13px;font-size:12.5px;color:#5A5526;line-height:1.5;}
+  .cmpnote b{color:#1B335C;}
+  .bigserved{display:flex;align-items:baseline;gap:9px;margin-bottom:11px;padding-bottom:11px;border-bottom:1px solid #E2E9EC;}
+  .bigserved .n{font-family:var(--mono);font-size:30px;font-weight:700;line-height:1;}
+  .card.reco .bigserved .n{color:var(--flow);} .card.act .bigserved .n{color:var(--ink);}
+  .bigserved small{font-size:10.5px;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;font-weight:700;}
+
+  /* sim panel */
+  .sim{background:var(--panel);border:1px solid #D5DEE2;border-radius:14px;padding:15px 17px;}
+  .simhead{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin-bottom:13px;}
+  .clock{font-family:var(--mono);font-size:24px;font-weight:600;min-width:96px;}
+  .clock small{display:block;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:700;}
+  .seg{display:flex;border:1px solid #CBD6DB;border-radius:8px;overflow:hidden;}
+  .seg button{font-size:12px;font-family:var(--sans);font-weight:600;color:#5B7480;background:#fff;border:0;padding:7px 12px;cursor:pointer;}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:#fff;}
+  .seg.spd button[aria-pressed="true"]{background:var(--flow);}
+  button.ctrl{font-size:13px;font-weight:600;color:#fff;background:var(--flow);border:0;border-radius:8px;padding:8px 16px;cursor:pointer;}
+  button.ctrl.sec{background:#fff;color:var(--ink);border:1px solid #CBD6DB;}
+  .scrub{flex:1 1 160px;min-width:140px;display:flex;align-items:center;gap:8px;}
+  .scrub input{flex:1;accent-color:var(--flow);cursor:pointer;}
+  .zl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:700;margin:4px 0 6px;}
+  .lamps{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px;}
+  .lamp{width:30px;height:30px;border-radius:7px;background:#EEF2F4;border:1.5px solid #DDE5E8;position:relative;
+        transition:background .2s,border-color .2s;}
+  .lamp.busy.r1{background:var(--r1);border-color:var(--r1);} .lamp.busy.r2{background:var(--r2);border-color:var(--r2);}
+  .lamp.busy.r3{background:var(--r3);border-color:var(--r3);}
+  .lamp.sup::after{content:"";position:absolute;inset:-3px;border:2px solid var(--warn);border-radius:9px;}
+  .wr{border:1.5px dashed #CBD6DB;border-radius:10px;padding:8px 10px;min-height:74px;transition:background .3s,border-color .3s;}
+  .wr.hot{background:var(--jam-soft);border-color:var(--jam);}
+  .wr-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px;}
+  .wr-c{font-family:var(--mono);font-size:20px;font-weight:700;} .wr.hot .wr-c{color:var(--jam);}
+  .dots{display:flex;flex-wrap:wrap;gap:4px;} .wd{width:12px;height:12px;border-radius:50%;background:var(--warn);}
+  .wr.hot .wd{background:var(--jam);} .ovf{font-family:var(--mono);font-weight:700;color:var(--jam);font-size:12px;align-self:center;}
+  .livestats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px;}
+  .livestats .m .v{font-size:18px;}
+  .chartbox{margin-top:14px;}
+  .legend{display:flex;gap:16px;font-size:12px;font-weight:600;margin-bottom:6px;flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;} .legend i{width:18px;height:3px;border-radius:2px;}
+  canvas{width:100%;height:auto;display:block;}
+  .reslegend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-top:8px;flex-wrap:wrap;}
+  .reslegend span{display:inline-flex;align-items:center;gap:5px;}
+  .reslegend i{width:11px;height:11px;border-radius:3px;}
+  .foot{margin-top:8px;font-size:11px;color:var(--muted);line-height:1.5;}
+
+  @media(max-width:880px){.layout{grid-template-columns:1fr;}.cmp{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Hospital-escuela · Planeación de consulta de oftalmología</div>
+    <h1>Simulador de capacidad y <span class="accent">cadencia de citas</span></h1>
+  </header>
+
+  <div class="layout">
+    <!-- ===== PARÁMETROS ===== -->
+    <aside class="params">
+      <h2>Parámetros</h2>
+
+      <div class="grp">
+        <div class="lbl">Recursos físicos</div>
+        <div class="row"><label>Lámparas</label><input id="lamps" type="number" min="1" value="12"><span class="u">unid</span></div>
+        <div class="row"><label>Adscritos que supervisan</label><input id="nAdsc" type="number" min="0" value="3"><span class="u">unid</span></div>
+        <div class="row"><label>Supervisión por caso</label><input id="supMin" type="number" min="1" value="5"><span class="u">min</span></div>
+      </div>
+
+      <div class="grp">
+        <div class="lbl">Residentes y tiempos (TAC)</div>
+        <div class="row"><label><span class="lvltag" style="background:var(--r1)"></span>R1 — n.º</label><input id="nR1" type="number" min="0" value="4"><span class="u">méd</span></div>
+        <div class="row"><label>R1 — TAC</label><input id="tac1" type="number" min="1" value="40"><span class="u">min</span></div>
+        <div class="row"><label><span class="lvltag" style="background:var(--r2)"></span>R2 — n.º</label><input id="nR2" type="number" min="0" value="4"><span class="u">méd</span></div>
+        <div class="row"><label>R2 — TAC</label><input id="tac2" type="number" min="1" value="30"><span class="u">min</span></div>
+        <div class="row"><label><span class="lvltag" style="background:var(--r3)"></span>R3 — n.º</label><input id="nR3" type="number" min="0" value="4"><span class="u">méd</span></div>
+        <div class="row"><label>R3 — TAC</label><input id="tac3" type="number" min="1" value="20"><span class="u">min</span></div>
+      </div>
+
+      <div class="grp">
+        <div class="lbl">Turno</div>
+        <div class="row"><label>Inicio</label><input id="start" type="time" value="08:00" style="width:96px"></div>
+        <div class="row"><label>Fin</label><input id="end" type="time" value="16:00" style="width:96px"></div>
+      </div>
+
+      <div class="grp">
+        <div class="lbl">Realidad operativa</div>
+        <div class="row"><label>Colchón (aprovecham.)</label><input id="buffer" type="number" min="50" max="100" value="85"><span class="u">%</span></div>
+        <div class="row"><label>No-show</label><input id="noShow" type="number" min="0" max="60" value="10"><span class="u">%</span></div>
+        <div class="row"><label>Llegan antes</label><input id="earlyMin" type="number" min="0" value="30"><span class="u">min</span></div>
+        <div class="row"><label>Sin cita (por turno)</label><input id="walkIns" type="number" min="0" value="0"><span class="u">pac</span></div>
+      </div>
+
+      <div class="grp" style="margin-bottom:0">
+        <div class="lbl">Diseño de la cadencia</div>
+        <div class="row"><label>Citas por bloque</label><input id="batch" type="number" min="1" value="1"><span class="u">pac</span></div>
+        <div class="row"><label>Intervalo manual <span style="font-size:9px">(0 = auto)</span></label><input id="manualInt" type="number" min="0" step="0.5" value="0"><span class="u">min</span></div>
+        <div class="row"><label>Slot fijo actual (comparar)</label><input id="slotCurrent" type="number" min="1" value="20"><span class="u">min</span></div>
+      </div>
+    </aside>
+
+    <!-- ===== RESULTADOS ===== -->
+    <div class="right">
+      <!-- hero -->
+      <div class="hero">
+        <div class="cap">Recomendación · cada cuánto abrir una cita</div>
+        <div class="big" id="recoBig">—</div>
+        <div class="sub" id="recoSub">—</div>
+        <div class="chips">
+          <div class="chip">Capacidad lámparas<b id="cLamp">—</b></div>
+          <div class="chip">Capacidad supervisión<b id="cSup">—</b></div>
+          <div class="chip">Capacidad efectiva<b id="cEff">—</b></div>
+          <div class="chip bn" id="cBott">Cuello de botella<b id="cBottV">—</b></div>
+        </div>
+        <div class="note" id="recoNote">—</div>
+      </div>
+
+      <!-- comparación -->
+      <div class="cmp">
+        <div class="card reco">
+          <div class="ct"><span class="d"></span>Con la cadencia recomendada</div>
+          <div class="bigserved"><span class="n" id="rServed">—</span><small>consultas atendidas en el día</small></div>
+          <div class="mini">
+            <div class="m"><div class="v" id="rPeak">—</div><div class="k">Pico en sala</div></div>
+            <div class="m"><div class="v" id="rMax">—</div><div class="k">Espera máx (min)</div></div>
+            <div class="m"><div class="v" id="rAvg">—</div><div class="k">Espera prom (min)</div></div>
+            <div class="m"><div class="v" id="rUtil">—</div><div class="k">Uso de lámparas</div></div>
+          </div>
+        </div>
+        <div class="card act">
+          <div class="ct"><span class="d"></span>Con tu slot fijo actual</div>
+          <div class="bigserved"><span class="n" id="aServed">—</span><small>consultas atendidas en el día</small></div>
+          <div class="mini">
+            <div class="m bad"><div class="v" id="aPeak">—</div><div class="k">Pico en sala</div></div>
+            <div class="m bad"><div class="v" id="aMax">—</div><div class="k">Espera máx (min)</div></div>
+            <div class="m bad"><div class="v" id="aAvg">—</div><div class="k">Espera prom (min)</div></div>
+            <div class="m"><div class="v" id="aUtil">—</div><div class="k">Uso de lámparas</div></div>
+          </div>
+        </div>
+        <p class="cmpnote"><b>Ojo con el “uso de lámparas”:</b> si el slot actual marca un uso igual o mayor, no es que sea más eficiente
+          — es que mantiene una <b>fila permanente</b> que nunca deja la lámpara ociosa. Ambos escenarios atienden a los <b>mismos pacientes</b>
+          (revisa “Atendidos”): ese punto extra de uso no produce ni una consulta más, solo se paga con minutos de espera. El margen ocioso de la
+          cadencia recomendada es la <b>holgura que vacía la sala</b>.</p>
+      </div>
+
+      <!-- simulación animada -->
+      <div class="sim">
+        <div class="simhead">
+          <div class="clock"><span id="clk">08:00</span><small>Hora del día</small></div>
+          <button class="ctrl" id="play">▶ Reproducir</button>
+          <button class="ctrl sec" id="reset">↺</button>
+          <div class="seg" id="scenario" role="group" aria-label="Escenario">
+            <button data-sc="reco" aria-pressed="true">Recomendado</button>
+            <button data-sc="actual">Slot actual</button>
+          </div>
+          <div class="seg spd" id="speed" role="group" aria-label="Velocidad">
+            <button data-s="1">1×</button><button data-s="2" aria-pressed="true">2×</button>
+            <button data-s="4">4×</button><button data-s="8">8×</button>
+          </div>
+          <div class="seg" id="assign" role="group" aria-label="Asignación">
+            <button data-a="level" aria-pressed="true">Por nivel</button>
+            <button data-a="random">Aleatorio</button>
+          </div>
+          <div class="scrub"><input type="range" id="scrub" min="0" max="400" value="0" step="1"></div>
+        </div>
+
+        <div class="zl">Lámparas (borde ámbar = en supervisión / esperando adscrito)</div>
+        <div class="lamps" id="lampStrip"></div>
+
+        <div class="zl">Sala de espera</div>
+        <div class="wr" id="wr">
+          <div class="wr-head"><span class="wr-c" id="qc">0</span><span class="zl" style="margin:0">esperando lámpara</span></div>
+          <div class="dots" id="dots"></div>
+        </div>
+
+        <div class="livestats">
+          <div class="m"><div class="v" id="lvQ">0</div><div class="k">En espera</div></div>
+          <div class="m"><div class="v" id="lvAvg">0</div><div class="k">Espera prom</div></div>
+          <div class="m"><div class="v" id="lvMax">0</div><div class="k">Espera máx</div></div>
+          <div class="m"><div class="v" id="lvDn">0</div><div class="k">Atendidos</div></div>
+        </div>
+
+        <div class="chartbox">
+          <div class="legend">
+            <span><i style="background:#2563EB"></i>Recomendado</span>
+            <span><i style="background:#E2752B"></i>Slot actual</span>
+          </div>
+          <canvas id="chart" width="1100" height="240"></canvas>
+        </div>
+        <div class="reslegend">
+          <span><i style="background:var(--r1)"></i>R1</span>
+          <span><i style="background:var(--r2)"></i>R2</span>
+          <span><i style="background:var(--r3)"></i>R3</span>
+          <span><i style="background:var(--warn)"></i>en supervisión</span>
+        </div>
+        <p class="foot" id="foot">—</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== MOTOR PARAMETRIZABLE (con comida y ramp-down a fin de turno) ======
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+function maxTacOf(P){return Math.max(P.nR1>0?P.tac1:0,P.nR2>0?P.tac2:0,P.nR3>0?P.tac3:0);}
+
+// Genera los minutos de cita recomendados (relativos al inicio del turno),
+// saltando la comida y cerrando para que la última consulta termine al cierre.
+function recoSlots(P,interval){
+  const slots=[];if(interval<=0)return slots;
+  const B=Math.max(1,Math.round(P.batch||1));
+  const step=interval*B;
+  const turnEnd=P.endMin-P.startMin, mt=maxTacOf(P);
+  if(P.lunchDur>0){
+    const lunchA=P.lunchStartRel, lunchB=lunchA+P.lunchDur;
+    for(let t=0;t<=lunchA-mt+1e-9;t+=step)for(let k=0;k<B;k++)slots.push(Math.round(t));
+    for(let t=lunchB;t<=turnEnd-mt+1e-9;t+=step)for(let k=0;k<B;k++)slots.push(Math.round(t));
+  }else{
+    for(let t=0;t<=turnEnd-mt+1e-9;t+=step)for(let k=0;k<B;k++)slots.push(Math.round(t));
+  }
+  return slots;
+}
+
+function computeModel(P){
+  const netMin=(P.endMin-P.startMin)-P.lunchDur;
+  const totalRes=P.nR1+P.nR2+P.nR3;
+  const activeLamps=Math.min(totalRes,P.lamps);
+  const rate=(n,tac)=>(n>0&&tac>0)?n*60/tac:0;
+  const aggAll=rate(P.nR1,P.tac1)+rate(P.nR2,P.tac2)+rate(P.nR3,P.tac3);
+  const lampRate=totalRes>0?aggAll/totalRes*activeLamps:0;
+  const supRate=P.nAdsc>0?P.nAdsc*60/P.supMin:1e9;
+  const sysRate=Math.min(lampRate,supRate);
+  const effRate=sysRate*P.buffer;
+  const walkIns=P.walkIns||0;
+  const walkRate=(walkIns>0&&netMin>0)?walkIns/(netMin/60):0;
+  const schedRate=Math.max(0,effRate-walkRate);
+  const overloaded=walkIns>0&&schedRate<=0;
+  const autoInterval=schedRate>0?60/schedRate:0;
+  const batch=Math.max(1,Math.round(P.batch||1));
+  const manualInt=(P.manualInt>0)?P.manualInt:0;
+  const interval=manualInt>0?manualInt/batch:autoInterval;
+  const groupInterval=manualInt>0?manualInt:autoInterval*batch;
+  const manualRate=manualInt>0?batch*60/manualInt:0;
+  const manualOver=manualInt>0&&manualRate>schedRate+0.05;
+  const manualUnder=manualInt>0&&manualRate<schedRate-0.05;
+  const intervalNoShow=interval*(1-P.noShow);
+  const bottleneck=lampRate<=supRate?'lamparas':'supervision';
+  const maxTac=maxTacOf(P);
+  const slots=recoSlots(P,interval);
+  const totalCitas=slots.length;
+  const lastApptMin=slots.length?slots[slots.length-1]:0;
+  return {netMin,totalRes,activeLamps,aggAll,lampRate,supRate,sysRate,effRate,
+          walkIns,walkRate,schedRate,overloaded,interval,autoInterval,intervalNoShow,bottleneck,
+          batch,groupInterval,manualInt,manualRate,manualOver,manualUnder,maxTac,lastApptMin,totalCitas};
+}
+
+function buildServers(P){
+  const pool=[];
+  for(let i=0;i<P.nR1;i++)pool.push({tac:P.tac1,lvl:'R1'});
+  for(let i=0;i<P.nR2;i++)pool.push({tac:P.tac2,lvl:'R2'});
+  for(let i=0;i<P.nR3;i++)pool.push({tac:P.tac3,lvl:'R3'});
+  if(pool.length<=P.lamps)return pool;
+  const s=[];for(let k=0;k<P.lamps;k++)s.push(pool[Math.floor(k*pool.length/P.lamps)]);
+  return s;
+}
+
+function makeArrivals(P,kind,model){
+  const out=[];const rng=mulberry32(99);const booked=[];
+  const turnEnd=P.endMin-P.startMin, mt=maxTacOf(P);
+  const lunchA=(P.lunchDur>0)?P.lunchStartRel:1e9, lunchB=lunchA+P.lunchDur;
+  if(kind==='reco'){
+    recoSlots(P,model.interval).forEach(t=>booked.push(t));
+  }else{ // slot fijo: P.lamps pacientes cada slotCurrent min, saltando la comida, hasta igualar las citas recomendadas
+    let b=0,guard=0;
+    while(booked.length<model.totalCitas&&guard++<5000){
+      const inLunch=(b>=lunchA&&b<lunchB);
+      if(!inLunch&&b<=turnEnd-mt){for(let i=0;i<P.lamps&&booked.length<model.totalCitas;i++)booked.push(b);}
+      b+=P.slotCurrent; if(b>turnEnd)break;
+    }
+  }
+  for(const t of booked){if(rng()<P.noShow)continue;out.push(Math.max(0,t-P.earlyMin));}
+  const wn=P.walkIns||0;const rw=mulberry32(555);
+  for(let i=0;i<wn;i++)out.push(Math.round(rw()*Math.max(1,model.netMin)));
+  return out.sort((a,b)=>a-b);
+}
+
+function simulate(P,arrivals,T,record){
+  const servers=buildServers(P);const S=servers.length;const rng=mulberry32(7777);const rsel=mulberry32(555);
+  const phase=new Array(S).fill('idle');const endT=new Array(S).fill(0);
+  let adscFree=P.nAdsc>0?P.nAdsc:9999;
+  const lunchA=(P.lunchDur>0)?P.lunchStartRel:1e9, lunchB=lunchA+P.lunchDur;
+  const byMin={};arrivals.forEach((a,i)=>{(byMin[a]=byMin[a]||[]).push(i);});
+  const pts=arrivals.map(a=>({arr:a,start:null}));
+  const pQ=[];const supQ=[];let done=0,busyMin=0,lastActive=0;
+  const wq=[],frames=record?[]:null;
+  for(let t=0;t<=T;t++){
+    const inLunch=(t>=lunchA&&t<lunchB);
+    for(let l=0;l<S;l++)if(phase[l]==='present'&&endT[l]<=t){phase[l]='idle';adscFree++;done++;}
+    for(let l=0;l<S;l++)if(phase[l]==='consult'&&endT[l]<=t){phase[l]='presentWait';supQ.push(l);}
+    if(!inLunch)while(adscFree>0&&supQ.length){const l=supQ.shift();phase[l]='present';endT[l]=t+P.supMin;adscFree--;}
+    if(byMin[t])byMin[t].forEach(id=>pQ.push(id));
+    if(!inLunch){
+      if(P.assign==='random'){const free=[];for(let l=0;l<S;l++)if(phase[l]==='idle')free.push(l);
+        while(free.length&&pQ.length){const k=Math.floor(rsel()*free.length);const l=free.splice(k,1)[0];const id=pQ.shift();const d=Math.round(servers[l].tac*(0.85+rng()*0.30));pts[id].start=t;phase[l]='consult';endT[l]=t+d;}}
+      else for(let l=0;l<S;l++)if(phase[l]==='idle'&&pQ.length){const id=pQ.shift();const d=Math.round(servers[l].tac*(0.85+rng()*0.30));pts[id].start=t;phase[l]='consult';endT[l]=t+d;}
+    }
+    let busy=0;for(let l=0;l<S;l++)if(phase[l]!=='idle')busy++;if(!inLunch)busyMin+=busy;
+    if(busy>0||pQ.length>0)lastActive=t;
+    wq.push(pQ.length);
+    if(record){
+      const ls=[];for(let l=0;l<S;l++)ls.push({busy:phase[l]!=='idle',sup:(phase[l]==='present'||phase[l]==='presentWait'),lvl:servers[l].lvl});
+      let sm=0,cn=0,mx=0;for(const p of pts){if(p.start!==null&&p.start<=t){const wv=p.start-p.arr;sm+=wv;cn++;if(wv>mx)mx=wv;}}
+      frames.push({q:pQ.length,served:done,lamps:ls,avg:cn?+(sm/cn).toFixed(1):0,max:mx,lunch:inLunch});
+    }
+  }
+  const w=pts.filter(p=>p.start!==null).map(p=>p.start-p.arr);
+  const lunchOverlap=Math.max(0,Math.min(lastActive,lunchB)-lunchA);
+  const opMin=Math.max(1,(lastActive+1)-lunchOverlap);
+  return {peakQ:Math.max(0,...wq),maxWait:w.length?Math.max(...w):0,
+          avgWait:w.length?+(w.reduce((a,b)=>a+b,0)/w.length).toFixed(1):0,
+          served:done,util:+(busyMin/(S*opMin)*100).toFixed(0),S,wq,frames,finishMin:lastActive};
+}
+
+</script>
+<script>
+"use strict";
+const E=id=>document.getElementById(id);
+const num=id=>parseFloat(E(id).value)||0;
+function hm(id){const v=E(id).value.split(':');return (+v[0])*60+(+v[1]);}
+function readP(){
+  const startMin=hm('start');
+  return {lamps:Math.max(1,num('lamps')),nAdsc:num('nAdsc'),supMin:Math.max(1,num('supMin')),
+    nR1:num('nR1'),tac1:Math.max(1,num('tac1')),nR2:num('nR2'),tac2:Math.max(1,num('tac2')),
+    nR3:num('nR3'),tac3:Math.max(1,num('tac3')),
+    startMin,endMin:hm('end'),lunchStartRel:0,lunchDur:0,
+    buffer:Math.min(1,Math.max(.5,num('buffer')/100)),noShow:Math.min(.6,Math.max(0,num('noShow')/100)),
+    earlyMin:Math.max(0,num('earlyMin')),slotCurrent:Math.max(1,num('slotCurrent')),walkIns:Math.max(0,num('walkIns')),
+    batch:Math.max(1,num('batch')),manualInt:Math.max(0,num('manualInt')),assign:assignPol};
+}
+function fmt(min){const h=Math.floor(min/60),m=Math.round(min)%60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
+
+let P,M,SIM={reco:null,act:null},T=400,scenario='reco',chartYMax=8,assignPol='level';
+
+function recompute(){
+  P=readP(); M=computeModel(P);
+  T=Math.max(360, M.netMin+180);
+  E('scrub').max=T;
+  SIM.reco=simulate(P,makeArrivals(P,'reco',M),T,true);
+  SIM.act =simulate(P,makeArrivals(P,'actual',M),T,true);
+  chartYMax=Math.max(8,Math.ceil(Math.max(SIM.reco.peakQ,SIM.act.peakQ)/8)*8);
+
+  // hero
+  if(M.overloaded){
+    E('recoBig').innerHTML='—';
+    E('recoSub').innerHTML=`⚠ Los <b>${M.walkIns}</b> pacientes sin cita (≈${M.walkRate.toFixed(1)}/h) ya igualan o superan la capacidad efectiva (${M.effRate.toFixed(1)}/h): no queda hueco para agendar citas. Hace falta más capacidad o derivar parte de la demanda.`;
+  }else{
+    if(M.batch>1)
+      E('recoBig').innerHTML=`<span>${M.batch}</span> pacientes cada <span>${M.groupInterval.toFixed(M.manualInt>0?0:1)}</span> min`;
+    else
+      E('recoBig').innerHTML=`Cita cada <span>${M.groupInterval.toFixed(M.manualInt>0?0:1)}</span> min`;
+    E('recoSub').innerHTML=`≈ <b>${M.totalCitas}</b> citas · última ${fmt(P.startMin+M.lastApptMin)} → termina ~<b>${fmt(P.startMin+M.lastApptMin+M.maxTac)}</b>`+
+      (M.manualInt>0?` · <span style="color:#9DB4D6">recomendado: ${(M.autoInterval*M.batch).toFixed(1)} min</span>`:``)+
+      (M.batch>1?` · = 1 cada <b>${M.interval.toFixed(1)}</b> min`:``)+
+      (M.walkIns>0?` · hueco para <b>${M.walkIns}</b> sin cita`:``);
+  }
+  E('cLamp').textContent=M.lampRate.toFixed(1)+' /h';
+  E('cSup').textContent=(M.supRate>1e8?'∞':M.supRate.toFixed(1)+' /h');
+  E('cEff').textContent=M.effRate.toFixed(1)+' /h';
+  const sup=M.bottleneck==='supervision';
+  E('cBottV').textContent=sup?'Supervisión':'Lámparas';
+  E('cBott').className='chip bn'+(sup?'':' ok');
+  const walkNote=M.walkIns>0?` Además se reserva ≈${M.walkRate.toFixed(1)}/h de capacidad para los ${M.walkIns} sin cita, por eso el intervalo se alarga: citar al tope dejaría a las urgencias sin lugar y reventaría la sala.`:'';
+  let manualNote='';
+  if(M.manualOver) manualNote=`<b style="color:#F4B183">⚠ Tu intervalo cita ${M.manualRate.toFixed(0)}/h, por encima de la capacidad (${M.schedRate.toFixed(0)}/h): la sala va a crecer. Alárgalo un poco.</b> `;
+  else if(M.manualUnder) manualNote=`<span style="color:#9DB4D6">Tu intervalo cita ${M.manualRate.toFixed(0)}/h, por debajo de la capacidad (${M.schedRate.toFixed(0)}/h): sala más tranquila, pero atiendes algunos pacientes menos.</span> `;
+  else if(M.manualInt>0) manualNote=`<span style="color:#93B7F5">Tu intervalo queda alineado a la capacidad. </span>`;
+  E('recoNote').innerHTML = manualNote + (sup
+    ? `La <b>supervisión</b> limita el sistema: con ${P.nAdsc} adscrito(s) a ${P.supMin} min/caso solo se cierran ${M.supRate.toFixed(0)}/h. Sumar un adscrito sube la capacidad más que sumar lámparas.`
+    : `Las <b>lámparas</b> limitan el sistema. La supervisión (${M.supRate.toFixed(0)}/h) tiene holgura; el límite es el tiempo de consulta de los residentes presentes.`)+walkNote;
+
+  // comparison
+  const r=SIM.reco,a=SIM.act;
+  E('rServed').textContent=r.served;E('aServed').textContent=a.served;
+  E('rPeak').textContent=r.peakQ;E('rMax').textContent=r.maxWait;E('rAvg').textContent=r.avgWait;E('rUtil').textContent=r.util+'%';
+  E('aPeak').textContent=a.peakQ;E('aMax').textContent=a.maxWait;E('aAvg').textContent=a.avgWait;E('aUtil').textContent=a.util+'%';
+
+  E('foot').innerHTML=`Simulación de eventos discretos en dos etapas (lámpara + supervisión), variación del TAC ±15%, `+
+    `no-show ${(P.noShow*100).toFixed(0)}%, llegada ${P.earlyMin} min antes`+
+    (P.lunchDur>0?`, comida ${fmt(P.startMin+P.lunchStartRel)}–${fmt(P.startMin+P.lunchStartRel+P.lunchDur)} (lámparas detenidas)`:``)+
+    (M.walkIns>0?` y ${M.walkIns} pacientes sin cita repartidos al azar en el turno (entran al mismo pool por orden de llegada; no se modela prioridad de urgencias)`:``)+
+    `. Capacidad real ≈ ${M.sysRate.toFixed(0)} consultas/h. Las citas se programan en mañana y tarde para que la última consulta termine cerca del cierre. Ambos escenarios reciben los mismos pacientes; solo cambia cómo se espacian las citas.`;
+
+  buildStrip(r.S); // strip sized to active lamps (same S for both scenarios)
+  t=0; render();
+}
+
+// ---- lamp strip ----
+let stripCells=[];
+function buildStrip(S){
+  const c=E('lampStrip');
+  if(stripCells.length===S)return;
+  c.innerHTML=''; stripCells=[];
+  for(let i=0;i<S;i++){const d=document.createElement('div');d.className='lamp';c.appendChild(d);stripCells.push(d);}
+}
+function renderDots(box,n){
+  const cap=30;const have=box.querySelectorAll('.wd').length;const want=Math.min(n,cap);
+  let o=box.querySelector('.ovf');if(o)o.remove();
+  let cur=have;while(cur>want){box.querySelector('.wd').remove();cur--;}
+  while(cur<want){const s=document.createElement('span');s.className='wd';box.appendChild(s);cur++;}
+  if(n>cap){const e=document.createElement('span');e.className='ovf';e.textContent='+'+(n-cap);box.appendChild(e);}
+}
+
+// ---- chart ----
+const cv=E('chart'),cx=cv.getContext('2d');
+function drawChart(t){
+  const W=cv.width,H=cv.height,pL=38,pR=12,pT=12,pB=24,yMax=chartYMax;
+  const hrs=(T)/60;
+  cx.clearRect(0,0,W,H);
+  const x=m=>pL+(m/T)*(W-pL-pR), y=v=>pT+(1-Math.min(v,yMax)/yMax)*(H-pT-pB);
+  if(P.lunchDur>0){const la=P.lunchStartRel,lb=la+P.lunchDur;
+    cx.fillStyle='rgba(17,41,74,.07)';cx.fillRect(x(la),pT,x(lb)-x(la),H-pT-pB);
+    cx.fillStyle='#7E929A';cx.font='10px sans-serif';cx.textAlign='center';cx.fillText('comida',(x(la)+x(lb))/2,pT+11);}
+  cx.font='11px ui-monospace,monospace';cx.textAlign='center';cx.fillStyle='#8499A1';cx.strokeStyle='#E2E9EC';
+  for(let h=0;h<=hrs;h++){const m=h*60;if(m>T)break;cx.beginPath();cx.moveTo(x(m),pT);cx.lineTo(x(m),H-pB);cx.stroke();
+    cx.fillText(fmt(P.startMin+m),x(m),H-8);}
+  cx.textAlign='right';const step=yMax/2;
+  for(let v=0;v<=yMax;v+=step){cx.strokeStyle='#EEF2F4';cx.beginPath();cx.moveTo(pL,y(v));cx.lineTo(W-pR,y(v));cx.stroke();
+    cx.fillStyle='#8499A1';cx.fillText(v,pL-5,y(v)+4);}
+  const upto=Math.max(0,Math.min(T,Math.round(t)));
+  function line(sim,col){cx.strokeStyle=col;cx.lineWidth=2.3;cx.lineJoin='round';cx.beginPath();
+    for(let m=0;m<=upto;m++){const v=sim.wq[m];if(m===0)cx.moveTo(x(m),y(v));else cx.lineTo(x(m),y(v));}cx.stroke();
+    const v=sim.wq[upto];cx.fillStyle=col;cx.beginPath();cx.arc(x(upto),y(v),3,0,7);cx.fill();}
+  line(SIM.act,'#E2752B'); line(SIM.reco,'#2563EB');
+  cx.strokeStyle='rgba(17,41,74,.22)';cx.lineWidth=1;cx.beginPath();cx.moveTo(x(upto),pT);cx.lineTo(x(upto),H-pB);cx.stroke();
+}
+
+// ---- render frame ----
+function render(){
+  const sim=scenario==='reco'?SIM.reco:SIM.act;
+  const ti=Math.max(0,Math.min(T,Math.round(t)));
+  const f=sim.frames[ti];
+  E('clk').textContent=fmt(P.startMin+ti);
+  E('scrub').value=ti;
+  f.lamps.forEach((ls,i)=>{const c=stripCells[i];if(!c)return;
+    c.className='lamp'+(ls.busy?' busy '+ls.lvl.toLowerCase():'')+(ls.sup?' sup':'');});
+  E('wr').classList.toggle('hot',f.q>=6);
+  E('qc').textContent=f.q;renderDots(E('dots'),f.q);
+  E('lvQ').textContent=f.q;
+  E('lvDn').textContent=f.served;
+  E('lvAvg').textContent=f.avg;
+  E('lvMax').textContent=f.max;
+  drawChart(t);
+}
+
+// ---- playback ----
+let t=0,playing=false,speed=2,last=0;const MPS=10;
+function tick(now){if(!playing)return;if(!last)last=now;const dt=(now-last)/1000;last=now;
+  t+=dt*MPS*speed;if(t>=T){t=T;playing=false;E('play').textContent='▶ Reproducir';render();return;}
+  render();requestAnimationFrame(tick);}
+function play(){if(playing)return;if(t>=T)t=0;playing=true;last=0;E('play').textContent='⏸ Pausar';requestAnimationFrame(tick);}
+function pause(){playing=false;E('play').textContent='▶ Reproducir';}
+E('play').onclick=()=>playing?pause():play();
+E('reset').onclick=()=>{pause();t=0;render();};
+E('scrub').oninput=e=>{pause();t=+e.target.value;render();};
+E('speed').querySelectorAll('button').forEach(b=>b.onclick=()=>{speed=+b.dataset.s;
+  E('speed').querySelectorAll('button').forEach(x=>x.removeAttribute('aria-pressed'));b.setAttribute('aria-pressed','true');});
+E('scenario').querySelectorAll('button').forEach(b=>b.onclick=()=>{scenario=b.dataset.sc;
+  E('scenario').querySelectorAll('button').forEach(x=>x.removeAttribute('aria-pressed'));b.setAttribute('aria-pressed','true');render();});
+E('assign').querySelectorAll('button').forEach(b=>b.onclick=()=>{assignPol=b.dataset.a;
+  E('assign').querySelectorAll('button').forEach(x=>x.removeAttribute('aria-pressed'));b.setAttribute('aria-pressed','true');
+  recompute();pause();t=0;render();});
+
+// recompute on any input change
+document.querySelectorAll('.params input').forEach(inp=>{inp.addEventListener('input',()=>{pause();recompute();});});
+
+recompute();
+</script>
+</body>
+</html>
