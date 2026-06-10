@@ -75,6 +75,15 @@
   .m .v{font-family:var(--mono);font-size:19px;font-weight:700;line-height:1;}
   .m .k{font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:4px;}
   .card.act .m.bad .v{color:var(--jam);}
+  .wt-summary{font-size:11.5px;color:var(--muted);margin:12px 0 7px;}
+  .wt-summary b{color:var(--ink);font-family:var(--mono);}
+  .hist-title{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:6px;}
+  .hist{display:flex;flex-direction:column;gap:4px;}
+  .hbin{display:flex;align-items:center;gap:7px;}
+  .hlab{font-size:10px;color:var(--muted);width:46px;flex:none;text-align:right;font-family:var(--mono);}
+  .htrack{flex:1;height:14px;background:#EAEFF5;border-radius:3px;overflow:hidden;}
+  .hbar{height:100%;border-radius:3px;min-width:0;transition:width .35s ease;}
+  .hval{font-size:10.5px;font-family:var(--mono);color:var(--ink);width:30px;flex:none;font-weight:700;text-align:right;}
   .cmpnote{grid-column:1/-1;background:#EEF3FB;border:1px solid #CBDAF0;border-left:3px solid var(--flow);
            border-radius:8px;padding:10px 13px;font-size:12.5px;color:#5A5526;line-height:1.5;}
   .cmpnote b{color:#1B335C;}
@@ -177,6 +186,7 @@
         <div class="row"><label>Citas por bloque</label><input id="batch" type="number" min="1" value="1"><span class="u">pac</span></div>
         <div class="row"><label>Intervalo manual <span style="font-size:9px">(0 = auto)</span></label><input id="manualInt" type="number" min="0" step="0.5" value="0"><span class="u">min</span></div>
         <div class="row"><label>Slot fijo actual (comparar)</label><input id="slotCurrent" type="number" min="1" value="20"><span class="u">min</span></div>
+        <div class="row"><label>Meta de espera</label><input id="waitGoal" type="number" min="1" value="15"><span class="u">min</span></div>
       </div>
     </aside>
 
@@ -207,6 +217,9 @@
             <div class="m"><div class="v" id="rAvg">—</div><div class="k">Espera prom (min)</div></div>
             <div class="m"><div class="v" id="rUtil">—</div><div class="k">Uso de lámparas</div></div>
           </div>
+          <div class="wt-summary" id="wtReco">—</div>
+          <div class="hist-title">Distribución de espera (min · pacientes)</div>
+          <div class="hist" id="histReco"></div>
         </div>
         <div class="card act">
           <div class="ct"><span class="d"></span>Con tu slot fijo actual</div>
@@ -217,6 +230,9 @@
             <div class="m bad"><div class="v" id="aAvg">—</div><div class="k">Espera prom (min)</div></div>
             <div class="m"><div class="v" id="aUtil">—</div><div class="k">Uso de lámparas</div></div>
           </div>
+          <div class="wt-summary" id="wtAct">—</div>
+          <div class="hist-title">Distribución de espera (min · pacientes)</div>
+          <div class="hist" id="histAct"></div>
         </div>
         <p class="cmpnote"><b>Ojo con el “uso de lámparas”:</b> si el slot actual marca un uso igual o mayor, no es que sea más eficiente
           — es que mantiene una <b>fila permanente</b> que nunca deja la lámpara ociosa. Partiendo de la <b>misma demanda del día</b>,
@@ -409,7 +425,7 @@ function simulate(P,arrivals,T,record){
   const opMin=Math.max(1,(lastActive+1)-lunchOverlap);
   return {peakQ:Math.max(0,...wq),maxWait:w.length?Math.max(...w):0,
           avgWait:w.length?+(w.reduce((a,b)=>a+b,0)/w.length).toFixed(1):0,
-          served:done,util:+(busyMin/(S*opMin)*100).toFixed(0),S,wq,frames,finishMin:lastActive};
+          served:done,util:+(busyMin/(S*opMin)*100).toFixed(0),S,wq,frames,finishMin:lastActive,waits:w};
 }
 
 </script>
@@ -434,6 +450,24 @@ function fmt(min){const h=Math.floor(min/60),m=Math.round(min)%60;return String(
 
 let P,M,SIM={reco:null,act:null},T=400,scenario='reco',chartYMax=8,assignPol='level';
 
+function histStats(waits,thr){
+  const bins=[0,0,0,0,0];
+  (waits||[]).forEach(w=>{if(w<5)bins[0]++;else if(w<10)bins[1]++;else if(w<15)bins[2]++;else if(w<30)bins[3]++;else bins[4]++;});
+  const s=[...(waits||[])].sort((x,y)=>x-y);
+  const p90=s.length?s[Math.min(s.length-1,Math.floor(0.9*s.length))]:0;
+  const over=(waits||[]).filter(w=>w>thr).length;
+  return {bins,p90:Math.round(p90),pctOver:(waits&&waits.length)?Math.round(over/waits.length*100):0};
+}
+function renderHist(histId,sumId,sim,thr,color){
+  const h=histStats(sim.waits,thr);
+  const labels=['0–5','5–10','10–15','15–30','30+'];
+  const mx=Math.max(1,...h.bins);
+  let html='';
+  for(let i=0;i<5;i++){const pct=h.bins[i]===0?0:Math.max(3,Math.round(h.bins[i]/mx*100));
+    html+=`<div class="hbin"><span class="hlab">${labels[i]}</span><div class="htrack"><div class="hbar" style="width:${pct}%;background:${color}"></div></div><span class="hval">${h.bins[i]}</span></div>`;}
+  E(histId).innerHTML=html;
+  E(sumId).innerHTML=`p90: <b>${h.p90}</b> min&nbsp;·&nbsp;<b>${h.pctOver}%</b> esperó &gt; ${thr} min`;
+}
 function recompute(){
   P=readP(); M=computeModel(P);
   T=Math.max(360, M.netMin+180);
@@ -476,6 +510,9 @@ function recompute(){
   E('rServed').textContent=r.served;E('aServed').textContent=a.served;
   E('rPeak').textContent=r.peakQ;E('rMax').textContent=r.maxWait;E('rAvg').textContent=r.avgWait;E('rUtil').textContent=r.util+'%';
   E('aPeak').textContent=a.peakQ;E('aMax').textContent=a.maxWait;E('aAvg').textContent=a.avgWait;E('aUtil').textContent=a.util+'%';
+  const thr=Math.max(1,num('waitGoal'));
+  renderHist('histReco','wtReco',r,thr,'var(--flow)');
+  renderHist('histAct','wtAct',a,thr,'var(--jam)');
 
   E('foot').innerHTML=`Simulación de eventos discretos en dos etapas (lámpara + supervisión), variación del TAC ±15%, `+
     `no-show ${(P.noShow*100).toFixed(0)}%, llegada ${P.earlyMin} min antes`+
